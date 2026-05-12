@@ -39,6 +39,7 @@ class ExhibitionListScreen extends ConsumerWidget {
                 group.id,
                 myMember?.assignedGroupId,
               );
+              final canEditAll = PermissionHelper.canEditAll(myRole);
 
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -81,7 +82,33 @@ class ExhibitionListScreen extends ConsumerWidget {
                       )).toList(),
                     ),
                   ),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (canEditAll)
+                        IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () {
+                            showDialog(context: context, builder: (ctx) => AlertDialog(
+                              title: const Text('展示の削除'),
+                              content: Text('「${group.name}」を削除してもよろしいですか？\nこの操作は取り消せません。'),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                                  onPressed: () {
+                                    ref.read(groupsProvider.notifier).removeGroup(index);
+                                    Navigator.pop(ctx);
+                                  },
+                                  child: const Text('削除'),
+                                ),
+                              ],
+                            ));
+                          },
+                        ),
+                      const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                    ],
+                  ),
                   onTap: () {
                     context.push('/group/$index');
                   },

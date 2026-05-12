@@ -54,7 +54,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           user.displayName ?? user.email ?? 'Googleユーザー',
           user.photoURL,
         );
-        context.go('/account');
+        ref.read(eventNameProvider.notifier).setName('#清高祭');
+        ref.read(userRoleProvider.notifier).setRole(UserRole.participant);
+        context.go('/main');
       }
     } on FirebaseAuthException catch (e) {
       if (mounted) _showError('Googleログインに失敗しました。\n詳細: ${e.message}');
@@ -134,8 +136,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 onPressed: _isLoading
                     ? null
                     : () {
-                        ref.read(isGuestProvider.notifier).setGuest(true);
-                        context.go('/role_selection');
+                        ref.read(eventNameProvider.notifier).setName('#清高祭');
+                        ref.read(userRoleProvider.notifier).setRole(UserRole.participant);
+                        context.go('/main');
                       },
                 icon: const Icon(Icons.person_outline),
                 label: const Text('ゲストとして利用する'),
@@ -148,7 +151,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
               const Spacer(),
               TextButton(
-                onPressed: () => context.go('/role_selection'),
+                onPressed: () {
+                  ref.read(eventNameProvider.notifier).setName('#清高祭');
+                  ref.read(userRoleProvider.notifier).setRole(UserRole.participant);
+                  context.go('/main');
+                },
                 child: const Text('デバッグ：スキップする',
                     style: TextStyle(color: Colors.grey)),
               ),

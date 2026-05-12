@@ -358,6 +358,7 @@ class GroupItem {
   final int capacityPerEntry; // n
   final int timePerEntryMinutes; // a
   final int distributedTickets; // s
+  final List<EventItem> timelineEvents;
 
   GroupItem({
     required this.id,
@@ -370,6 +371,7 @@ class GroupItem {
     this.capacityPerEntry = 10,
     this.timePerEntryMinutes = 5,
     this.distributedTickets = 0,
+    this.timelineEvents = const [],
   });
   
   GroupItem copyWith({
@@ -383,6 +385,7 @@ class GroupItem {
     int? capacityPerEntry,
     int? timePerEntryMinutes,
     int? distributedTickets,
+    List<EventItem>? timelineEvents,
   }) {
     return GroupItem(
       id: id ?? this.id,
@@ -395,6 +398,7 @@ class GroupItem {
       capacityPerEntry: capacityPerEntry ?? this.capacityPerEntry,
       timePerEntryMinutes: timePerEntryMinutes ?? this.timePerEntryMinutes,
       distributedTickets: distributedTickets ?? this.distributedTickets,
+      timelineEvents: timelineEvents ?? this.timelineEvents,
     );
   }
 
@@ -413,6 +417,7 @@ class GroupItem {
       capacityPerEntry: data['capacityPerEntry'] ?? 10,
       timePerEntryMinutes: data['timePerEntryMinutes'] ?? 5,
       distributedTickets: data['distributedTickets'] ?? 0,
+      timelineEvents: (data['timelineEvents'] as List<dynamic>? ?? []).map((e) => EventItem.fromMap('', e as Map<String,dynamic>)).toList(),
     );
   }
 
@@ -427,6 +432,7 @@ class GroupItem {
       'capacityPerEntry': capacityPerEntry,
       'timePerEntryMinutes': timePerEntryMinutes,
       'distributedTickets': distributedTickets,
+      'timelineEvents': timelineEvents.map((e) => e.toMap()).toList(),
     };
   }
 }
@@ -521,6 +527,22 @@ class GroupsNotifier extends Notifier<List<GroupItem>> {
   void addGroup(String name) {
     final id = 'group-${DateTime.now().millisecondsSinceEpoch}';
     state = [...state, GroupItem(id: id, name: name, tags: ['展示'])];
+  }
+
+  void removeGroup(int index) {
+    final newList = [...state];
+    newList.removeAt(index);
+    state = newList;
+  }
+
+  void addGroupTimelineEvent(int index, EventItem event) {
+    final newList = [...state];
+    final target = newList[index];
+    final updatedTimeline = [...target.timelineEvents, event];
+    // 日付順でソート
+    updatedTimeline.sort((a, b) => a.absoluteDateTime.compareTo(b.absoluteDateTime));
+    newList[index] = target.copyWith(timelineEvents: updatedTimeline);
+    state = newList;
   }
 
   void addTagToGroup(int index, String tag) {

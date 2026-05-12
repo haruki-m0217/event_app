@@ -126,9 +126,52 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
             leading: Icon(isOrganizer ? Icons.admin_panel_settings : Icons.person),
             title: Text(isOrganizer ? '参加者画面へ切り替え' : '運営画面へ切り替え（権限を持つ場合）'),
             onTap: () {
-              final newRole = isOrganizer ? UserRole.participant : UserRole.organizer;
-              ref.read(userRoleProvider.notifier).setRole(newRole);
-              Navigator.pop(context);
+              if (isOrganizer) {
+                ref.read(userRoleProvider.notifier).setRole(UserRole.participant);
+                Navigator.pop(context);
+              } else {
+                Navigator.pop(context); // Close drawer
+                showDialog(context: context, builder: (ctx) {
+                  final ctrl = TextEditingController();
+                  bool error = false;
+                  return StatefulBuilder(builder: (ctx, setState) {
+                    return AlertDialog(
+                      title: const Text('運営用パスコード'),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('運営画面に切り替えるためのパスコードを入力してください。'),
+                          TextField(
+                            controller: ctrl,
+                            obscureText: true,
+                            decoration: InputDecoration(
+                              labelText: 'パスコード',
+                              errorText: error ? 'パスコードが間違っています' : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
+                        ElevatedButton(onPressed: () {
+                          if (ctrl.text == '1234') {
+                            ref.read(userRoleProvider.notifier).setRole(UserRole.organizer);
+                            // Ensure the user has staff rights in the mock provider
+                            final uid = ref.read(currentUserUidProvider);
+                            if (uid != null) {
+                              ref.read(eventMembersProvider.notifier).updateRole(uid, EventMemberRole.staff);
+                            }
+                            Navigator.pop(ctx);
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('運営画面に切り替えました')));
+                          } else {
+                            setState(() => error = true);
+                          }
+                        }, child: const Text('切り替え')),
+                      ],
+                    );
+                  });
+                });
+              }
             },
           ),
           if (isOrganizer) ...[

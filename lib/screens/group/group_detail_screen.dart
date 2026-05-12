@@ -155,6 +155,46 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
       });
   }
 
+  void _showAddTimelineEventDialog(int index) {
+      final titleC = TextEditingController();
+      final timeC = TextEditingController();
+      final descC = TextEditingController();
+      
+      showDialog(context: context, builder: (ctx) {
+        return AlertDialog(
+          title: const Text('タイムテーブルに追加'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: titleC, decoration: const InputDecoration(labelText: 'イベント名 (例: ダンスパフォーマンス)')),
+              TextField(controller: timeC, decoration: const InputDecoration(labelText: '開始時間 (例: 14:30)')),
+              TextField(controller: descC, decoration: const InputDecoration(labelText: '詳細', alignLabelWithHint: true), maxLines: 2),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
+            ElevatedButton(
+              onPressed: () {
+                 if (titleC.text.isNotEmpty && timeC.text.isNotEmpty) {
+                   final event = EventItem(
+                     id: DateTime.now().millisecondsSinceEpoch.toString(),
+                     title: titleC.text,
+                     date: DateTime.now(), // 簡略化のため現在日を使用
+                     time: timeC.text,
+                     organizer: ref.read(groupsProvider)[index].name,
+                     description: descC.text,
+                   );
+                   ref.read(groupsProvider.notifier).addGroupTimelineEvent(index, event);
+                   Navigator.pop(ctx);
+                 }
+              }, 
+              child: const Text('追加')
+            )
+          ],
+        );
+      });
+  }
+
   @override
   Widget build(BuildContext context) {
     final intIndex = int.tryParse(widget.groupId) ?? 0;
@@ -422,7 +462,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                 const SizedBox(height: 16),
               ],
 
-              const Text('タイムライン', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('タイムライン (お知らせ)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
 
               if (group.posts.isEmpty)
@@ -430,6 +470,52 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
               else
                  ...group.posts.map((post) => _buildPostCard(post)),
                  
+              const SizedBox(height: 32),
+              
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('展示タイムテーブル', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  if (isOrganizer)
+                    TextButton.icon(
+                      onPressed: () => _showAddTimelineEventDialog(intIndex),
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text('追加'),
+                    )
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              if (group.timelineEvents.isEmpty)
+                 const Text(' 予定はまだありません', style: TextStyle(color: Colors.grey))
+              else
+                 ...group.timelineEvents.map((event) => Card(
+                   margin: const EdgeInsets.only(bottom: 8),
+                   child: ListTile(
+                     leading: Text(event.time, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF6B4EE6))),
+                     title: Text(event.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                     subtitle: event.description.isNotEmpty ? Text(event.description, maxLines: 1, overflow: TextOverflow.ellipsis) : null,
+                     trailing: const Icon(Icons.add_circle_outline, color: Color(0xFF6B4EE6)),
+                     onTap: () {
+                       showDialog(context: context, builder: (ctx) => AlertDialog(
+                         title: const Text('マイタイムテーブルに追加'),
+                         content: Text('「${event.title}」をあなたのタイムテーブルに追加しますか？'),
+                         actions: [
+                           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
+                           ElevatedButton(
+                             onPressed: () {
+                               ref.read(timetableProvider.notifier).addEvent(event);
+                               Navigator.pop(ctx);
+                               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('追加しました！')));
+                             }, 
+                             child: const Text('追加する')
+                           )
+                         ],
+                       ));
+                     },
+                   ),
+                 )),
+
               const SizedBox(height: 80), // bottom padding for FAB
             ]),
           ),
