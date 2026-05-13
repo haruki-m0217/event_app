@@ -16,7 +16,7 @@ import 'screens/admin/audit_log_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
-    initialLocation: '/login',
+    initialLocation: '/main',
     routes: [
       GoRoute(
         path: '/login',

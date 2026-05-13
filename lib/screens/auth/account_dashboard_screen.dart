@@ -156,6 +156,74 @@ class AccountDashboardScreen extends ConsumerWidget {
                   },
                 ),
               )),
+              // 権限追加セクション
+            const SizedBox(height: 32),
+            const Text('運営・展示係の方へ', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Card(
+              color: const Color(0xFF6B4EE6).withValues(alpha: 0.05),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                side: const BorderSide(color: Color(0xFF6B4EE6)),
+                borderRadius: BorderRadius.circular(12)
+              ),
+              child: ListTile(
+                leading: const Icon(Icons.key, color: Color(0xFF6B4EE6)),
+                title: const Text('権限追加用パスコードを入力', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF6B4EE6))),
+                onTap: () {
+                  showDialog(context: context, builder: (ctx) {
+                    final ctrl = TextEditingController();
+                    bool isError = false;
+                    return StatefulBuilder(builder: (ctx, setState) {
+                      return AlertDialog(
+                        title: const Text('パスコード入力'),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('担当者から共有されたパスコードを入力してください。'),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: ctrl,
+                              decoration: InputDecoration(
+                                labelText: 'パスコード',
+                                errorText: isError ? '無効なパスコードです' : null,
+                              ),
+                            ),
+                          ],
+                        ),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
+                          ElevatedButton(onPressed: () {
+                            final code = ctrl.text.trim();
+                            EventMemberRole? newRole;
+                            if (code == 'SUPER2026') {
+                              newRole = EventMemberRole.superAdmin;
+                            } else if (code == 'STAFF2026') {
+                              newRole = EventMemberRole.staff;
+                            } else if (code == 'LEAD2026') {
+                              newRole = EventMemberRole.exhibitionLead;
+                            }
+                            
+                            if (newRole != null) {
+                              final uid = ref.read(currentUserUidProvider);
+                              if (uid != null) {
+                                ref.read(eventMembersProvider.notifier).updateRole(uid, newRole);
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${displayRoleName(newRole, true)}の権限を追加しました！')));
+                                Navigator.pop(ctx);
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ログイン情報がありません。')));
+                              }
+                            } else {
+                              setState(() => isError = true);
+                            }
+                          }, child: const Text('追加')),
+                        ],
+                      );
+                    });
+                  });
+                },
+              ),
+            ),
           ],
         ),
       ),

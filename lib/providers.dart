@@ -1,6 +1,8 @@
 import 'dart:math' as math;
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // --- Roles & General ---
 enum UserRole { organizer, participant, superAdmin }
@@ -473,29 +475,24 @@ final eventNameProvider = NotifierProvider<EventNameNotifier, String>(() => Even
 class TimetableNotifier extends Notifier<List<EventItem>> {
   @override
   List<EventItem> build() {
-    final now = DateTime.now();
-    return [
-      EventItem(id: 'mock-1', title: '開会式', date: now, time: '10:00', organizer: '生徒会', description: 'グラウンドにて開会式を行います。'),
-      EventItem(id: 'mock-2', title: 'ステージイベント', date: now, time: '11:00', organizer: '軽音部', description: '秋の特別ライブです。'),
-    ];
+    _listenToFirestore();
+    return [];
   }
 
-  void _sortChronologically() {
-    final sorted = [...state];
-    sorted.sort((a, b) => a.absoluteDateTime.compareTo(b.absoluteDateTime));
-    state = sorted;
+  void _listenToFirestore() {
+    FirebaseFirestore.instance.collection('timetable').snapshots().listen((snapshot) {
+      final items = snapshot.docs.map((doc) => EventItem.fromMap(doc.id, doc.data())).toList();
+      items.sort((a, b) => a.absoluteDateTime.compareTo(b.absoluteDateTime));
+      state = items;
+    });
   }
 
   void addEvent(EventItem event) {
-    state = [...state, event];
-    _sortChronologically();
+    FirebaseFirestore.instance.collection('timetable').doc(event.id).set(event.toMap());
   }
   
   void insertEvent(int index, EventItem event) {
-    final newList = [...state];
-    newList.insert(index, event);
-    state = newList;
-    _sortChronologically();
+    addEvent(event); // order is handled by time
   }
 }
 final timetableProvider = NotifierProvider<TimetableNotifier, List<EventItem>>(() => TimetableNotifier());
@@ -503,80 +500,71 @@ final timetableProvider = NotifierProvider<TimetableNotifier, List<EventItem>>((
 // 3. Groups List
 class GroupsNotifier extends Notifier<List<GroupItem>> {
   @override
-  List<GroupItem> build() => [
-    GroupItem(
-      id: 'group-1',
-      name: '1年A組', 
-      tags: ['展示', '1年'],
-      description: 'お化け屋敷とタピオカドリンクの販売を行います。ぜひ来てください！',
-      posts: [PostItem(id: 'post-1', title: '準備完了！', content: '教室の装飾が終わりました。', timeString: '10分前')],
-      isWaitTimeSystemEnabled: true,
-      capacityPerEntry: 10,
-      timePerEntryMinutes: 5,
-      distributedTickets: 30,
-    ),
-    GroupItem(
-      id: 'group-2',
-      name: '美術部', 
-      tags: ['展示'],
-      description: '部員たちの渾身の作品を展示しています。',
-      posts: []
-    ),
-  ];
+  List<GroupItem> build() {
+    _listenToFirestore();
+    return [];
+  }
+
+  void _listenToFirestore() {
+    FirebaseFirestore.instance.collection('groups').snapshots().listen((snapshot) {
+      final items = snapshot.docs.map((doc) => GroupItem.fromMap(doc.id, doc.data())).toList();
+      state = items;
+    });
+  }
 
   void addGroup(String name) {
     final id = 'group-${DateTime.now().millisecondsSinceEpoch}';
-    state = [...state, GroupItem(id: id, name: name, tags: ['展示'])];
+    final group = GroupItem(id: id, name: name, tags: ['展示']);
+    FirebaseFirestore.instance.collection('groups').doc(id).set(group.toMap());
   }
 
   void removeGroup(int index) {
-    final newList = [...state];
-    newList.removeAt(index);
-    state = newList;
+    if (index >= state.length) return;
+    FirebaseFirestore.instance.collection('groups').doc(state[index].id).delete();
   }
 
   void addGroupTimelineEvent(int index, EventItem event) {
-    final newList = [...state];
-    final target = newList[index];
+    if (index >= state.length) return;
+    final target = state[index];
     final updatedTimeline = [...target.timelineEvents, event];
-    // 日付順でソート
     updatedTimeline.sort((a, b) => a.absoluteDateTime.compareTo(b.absoluteDateTime));
-    newList[index] = target.copyWith(timelineEvents: updatedTimeline);
-    state = newList;
+    FirebaseFirestore.instance.collection('groups').doc(target.id).update({
+      'timelineEvents': updatedTimeline.map((e) => e.toMap()).toList()
+    });
   }
 
   void addTagToGroup(int index, String tag) {
-    final newList = [...state];
-    final target = newList[index];
+    if (index >= state.length) return;
+    final target = state[index];
     if (!target.tags.contains(tag)) {
-      newList[index] = target.copyWith(tags: [...target.tags, tag]);
-      state = newList;
+      FirebaseFirestore.instance.collection('groups').doc(target.id).update({
+        'tags': FieldValue.arrayUnion([tag])
+      });
     }
   }
 
   void updateGroupTitle(int index, String newTitle) {
-    final newList = [...state];
-    newList[index] = newList[index].copyWith(name: newTitle);
-    state = newList;
+    if (index >= state.length) return;
+    FirebaseFirestore.instance.collection('groups').doc(state[index].id).update({'name': newTitle});
   }
 
   void updateGroupDescription(int index, String newDesc) {
-    final newList = [...state];
-    newList[index] = newList[index].copyWith(description: newDesc);
-    state = newList;
+    if (index >= state.length) return;
+    FirebaseFirestore.instance.collection('groups').doc(state[index].id).update({'description': newDesc});
   }
 
   void updateGroupHeaderImage(int index, String path) {
-    final newList = [...state];
-    newList[index] = newList[index].copyWith(headerImagePath: path);
-    state = newList;
+    if (index >= state.length) return;
+    FirebaseFirestore.instance.collection('groups').doc(state[index].id).update({'headerImagePath': path});
   }
 
   void addGroupPost(int index, PostItem post) {
-    final newList = [...state];
-    final target = newList[index];
-    newList[index] = target.copyWith(posts: [post, ...target.posts]);
-    state = newList;
+    if (index >= state.length) return;
+    final target = state[index];
+    final posts = [post, ...target.posts];
+    FirebaseFirestore.instance.collection('groups').doc(target.id).update({
+      'posts': posts.map((e) => e.toMap()).toList()
+    });
   }
 
   void updateWaitTimeSettings(int index, {
@@ -585,30 +573,30 @@ class GroupsNotifier extends Notifier<List<GroupItem>> {
     int? timeMin,
     int? tickets,
   }) {
-    final newList = [...state];
-    final t = newList[index];
-    newList[index] = t.copyWith(
-      isWaitTimeSystemEnabled: isEnabled ?? t.isWaitTimeSystemEnabled,
-      capacityPerEntry: capacity ?? t.capacityPerEntry,
-      timePerEntryMinutes: timeMin ?? t.timePerEntryMinutes,
-      distributedTickets: tickets ?? t.distributedTickets,
-    );
-    state = newList;
+    if (index >= state.length) return;
+    final t = state[index];
+    FirebaseFirestore.instance.collection('groups').doc(t.id).update({
+      'isWaitTimeSystemEnabled': isEnabled ?? t.isWaitTimeSystemEnabled,
+      'capacityPerEntry': capacity ?? t.capacityPerEntry,
+      'timePerEntryMinutes': timeMin ?? t.timePerEntryMinutes,
+      'distributedTickets': tickets ?? t.distributedTickets,
+    });
   }
 
   void incrementDistributedTickets(int index) {
-    final newList = [...state];
-    final t = newList[index];
-    newList[index] = t.copyWith(distributedTickets: t.distributedTickets + 1);
-    state = newList;
+    if (index >= state.length) return;
+    FirebaseFirestore.instance.collection('groups').doc(state[index].id).update({
+      'distributedTickets': FieldValue.increment(1)
+    });
   }
 
   void decrementDistributedTickets(int index) {
-    final newList = [...state];
-    final t = newList[index];
+    if (index >= state.length) return;
+    final t = state[index];
     if (t.distributedTickets > 0) {
-      newList[index] = t.copyWith(distributedTickets: t.distributedTickets - 1);
-      state = newList;
+      FirebaseFirestore.instance.collection('groups').doc(t.id).update({
+        'distributedTickets': FieldValue.increment(-1)
+      });
     }
   }
 }
@@ -648,14 +636,40 @@ final campusMapProvider = NotifierProvider<CampusMapNotifier, CampusMapState>(()
 // 5. Active Reminders (Stores list of EventItems)
 class ActiveRemindersNotifier extends Notifier<List<EventItem>> {
   @override
-  List<EventItem> build() => [];
-  
-  void toggleReminder(EventItem item) {
-    if (state.contains(item)) {
-      state = state.where((e) => e != item).toList();
+  List<EventItem> build() {
+    _loadFromPrefs();
+    return [];
+  }
+
+  Future<void> _loadFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList('active_reminders_json') ?? [];
+    final items = list.map((e) {
+      final map = jsonDecode(e);
+      map['date'] = Timestamp.fromMillisecondsSinceEpoch(map['date_ms']);
+      return EventItem.fromMap(map['id'], map);
+    }).toList();
+    state = items;
+  }
+
+  Future<void> toggleReminder(EventItem item) async {
+    List<EventItem> newState;
+    if (state.any((e) => e.id == item.id)) {
+      newState = state.where((e) => e.id != item.id).toList();
     } else {
-      state = [...state, item];
+      newState = [...state, item];
     }
+    state = newState;
+    
+    final prefs = await SharedPreferences.getInstance();
+    final jsonList = newState.map((e) {
+      final map = e.toMap();
+      map['id'] = e.id;
+      map['date_ms'] = e.date.millisecondsSinceEpoch;
+      map.remove('date');
+      return jsonEncode(map);
+    }).toList();
+    await prefs.setStringList('active_reminders_json', jsonList);
   }
 }
 final activeRemindersProvider = NotifierProvider<ActiveRemindersNotifier, List<EventItem>>(() => ActiveRemindersNotifier());

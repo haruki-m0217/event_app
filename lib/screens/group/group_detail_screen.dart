@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../../providers.dart';
 import '../../permission_helper.dart';
 
@@ -46,14 +47,26 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: ImageSource.gallery);
     if (picked != null) {
-      ref.read(groupsProvider.notifier).updateGroupHeaderImage(index, picked.path);
+      try {
+        final storageRef = FirebaseStorage.instance.ref().child('groups/${widget.groupId}/header_${DateTime.now().millisecondsSinceEpoch}.jpg');
+        if (kIsWeb) {
+          final bytes = await picked.readAsBytes();
+          await storageRef.putData(bytes);
+        } else {
+          await storageRef.putFile(File(picked.path));
+        }
+        final downloadUrl = await storageRef.getDownloadURL();
+        ref.read(groupsProvider.notifier).updateGroupHeaderImage(index, downloadUrl);
+      } catch (e) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('画像のアップロードに失敗しました: $e')));
+      }
     }
   }
 
   void _showAddPostDialog(int index) {
       final titleC = TextEditingController();
       final contentC = TextEditingController();
-      String? localImagePath;
+      XFile? localImageFile;
       
       showDialog(context: context, builder: (ctx) {
         return StatefulBuilder(
@@ -66,12 +79,12 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                   TextField(controller: titleC, decoration: const InputDecoration(labelText: 'タイトル')),
                   TextField(controller: contentC, decoration: const InputDecoration(labelText: '内容', alignLabelWithHint: true), maxLines: 3),
                   const SizedBox(height: 16),
-                  if (localImagePath != null)
+                  if (localImageFile != null)
                      Padding(
                        padding: const EdgeInsets.only(bottom: 8.0),
                        child: kIsWeb 
-                           ? Image.network(localImagePath!, height: 100, fit: BoxFit.cover)
-                           : Image.file(File(localImagePath!), height: 100, fit: BoxFit.cover),
+                           ? Image.network(localImageFile!.path, height: 100, fit: BoxFit.cover)
+                           : Image.file(File(localImageFile!.path), height: 100, fit: BoxFit.cover),
                      ),
                   TextButton.icon(
                     onPressed: () async {
@@ -79,7 +92,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                       final picked = await picker.pickImage(source: ImageSource.gallery);
                       if (picked != null) {
                         setStateBuilder(() {
-                          localImagePath = picked.path;
+                          localImageFile = picked;
                         });
                       }
                     }, 
@@ -91,22 +104,38 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
               actions: [
                 TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
                 ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                      if (titleC.text.isNotEmpty && contentC.text.isNotEmpty) {
+                       String? downloadUrl;
+                       if (localImageFile != null) {
+                         try {
+                           final storageRef = FirebaseStorage.instance.ref().child('groups/${widget.groupId}/posts/${DateTime.now().millisecondsSinceEpoch}.jpg');
+                           if (kIsWeb) {
+                             final bytes = await localImageFile!.readAsBytes();
+                             await storageRef.putData(bytes);
+                           } else {
+                             await storageRef.putFile(File(localImageFile!.path));
+                           }
+                           downloadUrl = await storageRef.getDownloadURL();
+                         } catch (e) {
+                           // Ignore upload error for simplicity, or handle it
+                         }
+                       }
+                       
                        ref.read(groupsProvider.notifier).addGroupPost(index, PostItem(
                           id: DateTime.now().millisecondsSinceEpoch.toString(),
-                          title: titleC.text, content: contentC.text, timeString: 'たった今', imagePath: localImagePath
+                          title: titleC.text, content: contentC.text, timeString: 'たった今', imagePath: downloadUrl
                        ));
                        final groupName = ref.read(groupsProvider)[index].name;
                        ref.read(notificationsProvider.notifier).addNotification('$groupName のタイムラインが更新されました');
-                       // 監査ログ記録
+                       
                        final profile = ref.read(userProfileProvider);
                        final uid = ref.read(currentUserUidProvider) ?? '';
                        ref.read(auditLogProvider.notifier).logAction(
                          uid, profile.name, profile.avatarPath,
                          '「$groupName」に投稿「${titleC.text}」を追加',
                        );
-                       Navigator.pop(ctx);
+                       if (context.mounted) Navigator.pop(ctx);
                      }
                   }, 
                   child: const Text('投稿')

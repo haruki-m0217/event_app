@@ -39,6 +39,7 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
     final eventCode = ref.watch(eventCodeProvider);
     final userProfile = ref.watch(userProfileProvider);
     final myEventRole = ref.watch(currentEventRoleProvider);
+    final isGuest = ref.watch(isGuestProvider);
     final isSelf = true; // ドロワーは常に自分の表示
     final myRoleLabel = displayRoleName(myEventRole, isSelf);
 
@@ -124,53 +125,28 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
           // Mode switch toggle
           ListTile(
             leading: Icon(isOrganizer ? Icons.admin_panel_settings : Icons.person),
-            title: Text(isOrganizer ? '参加者画面へ切り替え' : '運営画面へ切り替え（権限を持つ場合）'),
+            title: Text(isOrganizer ? '参加者画面へ切り替え' : (isGuest ? 'ログインする' : '運営画面へ切り替え（権限が必要）')),
             onTap: () {
               if (isOrganizer) {
                 ref.read(userRoleProvider.notifier).setRole(UserRole.participant);
                 Navigator.pop(context);
               } else {
-                Navigator.pop(context); // Close drawer
-                showDialog(context: context, builder: (ctx) {
-                  final ctrl = TextEditingController();
-                  bool error = false;
-                  return StatefulBuilder(builder: (ctx, setState) {
-                    return AlertDialog(
-                      title: const Text('運営用パスコード'),
-                      content: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text('運営画面に切り替えるためのパスコードを入力してください。'),
-                          TextField(
-                            controller: ctrl,
-                            obscureText: true,
-                            decoration: InputDecoration(
-                              labelText: 'パスコード',
-                              errorText: error ? 'パスコードが間違っています' : null,
-                            ),
-                          ),
-                        ],
-                      ),
-                      actions: [
-                        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
-                        ElevatedButton(onPressed: () {
-                          if (ctrl.text == '1234') {
-                            ref.read(userRoleProvider.notifier).setRole(UserRole.organizer);
-                            // Ensure the user has staff rights in the mock provider
-                            final uid = ref.read(currentUserUidProvider);
-                            if (uid != null) {
-                              ref.read(eventMembersProvider.notifier).updateRole(uid, EventMemberRole.staff);
-                            }
-                            Navigator.pop(ctx);
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('運営画面に切り替えました')));
-                          } else {
-                            setState(() => error = true);
-                          }
-                        }, child: const Text('切り替え')),
-                      ],
-                    );
-                  });
-                });
+                if (isGuest) {
+                  Navigator.pop(context);
+                  context.push('/login');
+                } else {
+                  if (myEventRole != EventMemberRole.participant) {
+                    ref.read(userRoleProvider.notifier).setRole(UserRole.organizer);
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('運営画面に切り替えました')));
+                  } else {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('運営権限がありません。マイアカウントから権限を追加してください。'),
+                      backgroundColor: Colors.orange,
+                    ));
+                  }
+                }
               }
             },
           ),
