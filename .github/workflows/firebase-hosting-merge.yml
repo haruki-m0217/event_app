@@ -22,3 +22,10 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_GAKUSAI_6C962 }}
           channelId: live
           projectId: gakusai-6c962
+      # Deploy Storage rules
+      - name: Write service account key
+        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_GAKUSAI_6C962 }}' > /tmp/sa.json
+      - run: npm install -g firebase-tools
+      - run: firebase deploy --only storage --project gakusai-6c962
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa.json
