@@ -42,8 +42,6 @@ class AccountDashboardScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final createdEvents = ref.watch(myCreatedEventsProvider);
-    final joinedEvents = ref.watch(myJoinedEventsProvider);
     final profile = ref.watch(userProfileProvider);
 
     return Scaffold(
@@ -176,6 +174,7 @@ class AccountDashboardScreen extends ConsumerWidget {
                   });
                 },
               ),
+            ),
           ],
         ),
       ),

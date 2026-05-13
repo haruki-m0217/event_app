@@ -65,7 +65,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
     );
   }
 
-  Map<String, bool> _uploadingMap = {};
+  final Map<String, bool> _uploadingMap = {};
 
   Future<void> _pickImageForFloor(String floorTag, StateSetter setState) async {
     final picker = ImagePicker();
