@@ -3,9 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import '../../providers.dart';
 import '../../permission_helper.dart';
+import '../../services/image_upload_service.dart';
 
 class GroupDetailScreen extends ConsumerStatefulWidget {
   final String groupId; // Used as index
@@ -45,17 +45,11 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
 
   Future<void> _pickHeaderImage(int index) async {
     final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery);
+    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
     if (picked != null) {
       try {
-        final storageRef = FirebaseStorage.instance.ref().child('groups/${widget.groupId}/header_${DateTime.now().millisecondsSinceEpoch}.jpg');
-        if (kIsWeb) {
-          final bytes = await picked.readAsBytes();
-          await storageRef.putData(bytes);
-        } else {
-          await storageRef.putFile(File(picked.path));
-        }
-        final downloadUrl = await storageRef.getDownloadURL();
+        final bytes = await picked.readAsBytes();
+        final downloadUrl = await ImageUploadService.uploadBytes(bytes);
         ref.read(groupsProvider.notifier).updateGroupHeaderImage(index, downloadUrl);
       } catch (e) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('画像のアップロードに失敗しました: $e')));
@@ -109,16 +103,10 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                        String? downloadUrl;
                        if (localImageFile != null) {
                          try {
-                           final storageRef = FirebaseStorage.instance.ref().child('groups/${widget.groupId}/posts/${DateTime.now().millisecondsSinceEpoch}.jpg');
-                           if (kIsWeb) {
-                             final bytes = await localImageFile!.readAsBytes();
-                             await storageRef.putData(bytes);
-                           } else {
-                             await storageRef.putFile(File(localImageFile!.path));
-                           }
-                           downloadUrl = await storageRef.getDownloadURL();
+                           final bytes = await localImageFile!.readAsBytes();
+                           downloadUrl = await ImageUploadService.uploadBytes(bytes);
                          } catch (e) {
-                           // Ignore upload error for simplicity, or handle it
+                           // Ignore upload error for simplicity
                          }
                        }
                        
