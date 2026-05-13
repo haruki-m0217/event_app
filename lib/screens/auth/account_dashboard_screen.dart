@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,20 +41,92 @@ class AccountDashboardScreen extends ConsumerWidget {
     ));
   }
 
+  Widget _buildRoleBadge(EventMemberRole role, bool isGuest) {
+    if (isGuest) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.person_outline, size: 16, color: Colors.grey),
+            SizedBox(width: 4),
+            Text('ゲスト', style: TextStyle(color: Colors.grey, fontSize: 13)),
+          ],
+        ),
+      );
+    }
+    final (color, icon, label) = switch (role) {
+      EventMemberRole.superAdmin => (Colors.red, Icons.security, '最高責任者'),
+      EventMemberRole.staff     => (const Color(0xFF6B4EE6), Icons.admin_panel_settings, '運営スタッフ'),
+      EventMemberRole.exhibitionLead => (Colors.teal, Icons.people, '展示係'),
+      _                         => (Colors.blueGrey, Icons.badge, '参加者'),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 4),
+          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleLogout(BuildContext context, WidgetRef ref) async {
+    try {
+      if (!kIsWeb) {
+        await GoogleSignIn.instance.signOut();
+      }
+      await FirebaseAuth.instance.signOut();
+    } catch (_) {}
+    ref.read(isGuestProvider.notifier).setGuest(true);
+    ref.read(currentUserUidProvider.notifier).setUid('');
+    ref.read(userRoleProvider.notifier).setRole(UserRole.participant);
+    if (context.mounted) context.go('/main');
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(userProfileProvider);
+    final myEventRole = ref.watch(currentEventRoleProvider);
+    final isGuest = ref.watch(isGuestProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('マイアカウント'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () {
-              context.go('/login');
-            },
-          )
+          if (!isGuest)
+            IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: 'ログアウト',
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('ログアウト'),
+                    content: const Text('ログアウトしますか？'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('キャンセル')),
+                      ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('ログアウト')),
+                    ],
+                  ),
+                );
+                if (confirm == true && context.mounted) {
+                  await _handleLogout(context, ref);
+                }
+              },
+            ),
         ],
       ),
       body: SingleChildScrollView(
@@ -103,6 +176,9 @@ class AccountDashboardScreen extends ConsumerWidget {
                     ],
                   ),
                   Text(FirebaseAuth.instance.currentUser?.email ?? 'ゲスト', style: const TextStyle(color: Colors.grey)),
+                  const SizedBox(height: 12),
+                  // 権限バッジ
+                  _buildRoleBadge(myEventRole, isGuest),
                 ],
               ),
             ),

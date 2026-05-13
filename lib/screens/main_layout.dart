@@ -35,8 +35,6 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
     final role = ref.watch(userRoleProvider);
     final eventName = ref.watch(eventNameProvider);
     final isOrganizer = role == UserRole.organizer;
-    final isPublished = ref.watch(isEventPublishedProvider);
-    final eventCode = ref.watch(eventCodeProvider);
     final userProfile = ref.watch(userProfileProvider);
     final myEventRole = ref.watch(currentEventRoleProvider);
     final isGuest = ref.watch(isGuestProvider);
@@ -122,97 +120,51 @@ class _MainLayoutState extends ConsumerState<MainLayout> {
             },
           ),
           const Divider(),
-          // Mode switch toggle
-          ListTile(
-            leading: Icon(isOrganizer ? Icons.admin_panel_settings : Icons.person),
-            title: Text(isOrganizer ? '参加者画面へ切り替え' : (isGuest ? 'ログインする' : '運営画面へ切り替え（権限が必要）')),
-            onTap: () {
-              if (isOrganizer) {
+          // Guest: show login button. Logged-in with role: show admin switch. Logged-in no role: show info.
+          if (isGuest)
+            ListTile(
+              leading: const Icon(Icons.login, color: Color(0xFF6B4EE6)),
+              title: const Text('Googleでログインする', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF6B4EE6))),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/login');
+              },
+            )
+          else if (isOrganizer)
+            ListTile(
+              leading: const Icon(Icons.person),
+              title: const Text('参加者画面へ切り替え'),
+              onTap: () {
                 ref.read(userRoleProvider.notifier).setRole(UserRole.participant);
                 Navigator.pop(context);
-              } else {
-                if (isGuest) {
-                  Navigator.pop(context);
-                  context.push('/login');
-                } else {
-                  if (myEventRole != EventMemberRole.participant) {
-                    ref.read(userRoleProvider.notifier).setRole(UserRole.organizer);
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('運営画面に切り替えました')));
-                  } else {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text('運営権限がありません。マイアカウントから権限を追加してください。'),
-                      backgroundColor: Colors.orange,
-                    ));
-                  }
-                }
-              }
-            },
-          ),
-          if (isOrganizer) ...[
-             const Divider(),
-             if (!isPublished)
-               Padding(
-                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                 child: ElevatedButton.icon(
-                   style: ElevatedButton.styleFrom(
-                     backgroundColor: Colors.orange,
-                     foregroundColor: Colors.white,
-                   ),
-                   icon: const Icon(Icons.rocket_launch),
-                   label: const Text('イベントを公開する', style: TextStyle(fontWeight: FontWeight.bold)),
-                   onPressed: () {
-                     ref.read(isEventPublishedProvider.notifier).publish();
-                     ref.read(eventCodeProvider.notifier).generateCode();
-                     final newCode = ref.read(eventCodeProvider);
-                     Navigator.pop(context);
-                     showDialog(context: context, builder: (ctx) => AlertDialog(
-                       title: const Text('公開完了！'),
-                       content: Text('イベントが公開されました。\n以下の参加コードを参加者に共有してください。\n\n【 $newCode 】', style: const TextStyle(fontWeight: FontWeight.bold)),
-                       actions: [
-                         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))
-                       ]
-                     ));
-                   },
-                 ),
-               )
-             else
-               ListTile(
-                 tileColor: Colors.orange.withValues(alpha: 0.1),
-                 leading: const Icon(Icons.check_circle, color: Colors.orange),
-                 title: const Text('公開済み', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
-                 subtitle: Text('参加コード: $eventCode', style: const TextStyle(fontWeight: FontWeight.bold)),
-                 trailing: IconButton(
-                   icon: const Icon(Icons.edit, color: Colors.orange),
-                   onPressed: () {
-                     showDialog(context: context, builder: (ctx) {
-                       final ctrl = TextEditingController(text: eventCode);
-                       return AlertDialog(
-                         title: const Text('参加コードの変更'),
-                         content: TextField(
-                           controller: ctrl,
-                           decoration: const InputDecoration(labelText: '英数字で入力'),
-                         ),
-                         actions: [
-                           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
-                           ElevatedButton(onPressed: () {
-                             if (ctrl.text.isEmpty) return;
-                             final success = ref.read(eventCodeProvider.notifier).trySetCustomCode(ctrl.text);
-                             if (success) {
-                               Navigator.pop(ctx);
-                               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('コードを変更しました')));
-                             } else {
-                               ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('このコードは既に使われています'), backgroundColor: Colors.red));
-                             }
-                           }, child: const Text('保存')),
-                         ]
-                       );
-                     });
-                   },
-                 ),
-               )
-          ],
+              },
+            )
+          else if (myEventRole != EventMemberRole.participant)
+            ListTile(
+              leading: const Icon(Icons.admin_panel_settings, color: Color(0xFF6B4EE6)),
+              title: const Text('運営画面へ切り替え', style: TextStyle(color: Color(0xFF6B4EE6), fontWeight: FontWeight.bold)),
+              onTap: () {
+                ref.read(userRoleProvider.notifier).setRole(UserRole.organizer);
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('運営画面に切り替えました')));
+              },
+            )
+          else
+            ListTile(
+              leading: const Icon(Icons.info_outline, color: Colors.grey),
+              title: const Text('運営権限が必要です', style: TextStyle(color: Colors.grey)),
+              subtitle: const Text('マイアカウントから権限を追加してください'),
+              onTap: () {
+                Navigator.pop(context);
+                context.push('/account');
+              },
+            ),
+          // TODO: イベントを公開する機能は一時封印中
+          // if (isOrganizer) ...[
+          //   const Divider(),
+          //   if (!isPublished) ... publish button ...
+          //   else ... published status ...
+          // ]
           if (role == UserRole.superAdmin) ...[
             const Divider(),
             ListTile(
