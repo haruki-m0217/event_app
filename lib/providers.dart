@@ -619,16 +619,34 @@ class CampusMapState {
 
 class CampusMapNotifier extends Notifier<CampusMapState> {
   @override
-  CampusMapState build() => CampusMapState();
+  CampusMapState build() {
+    _listenToFirestore();
+    return CampusMapState();
+  }
+
+  void _listenToFirestore() {
+    FirebaseFirestore.instance.collection('settings').doc('campus_map').snapshots().listen((snapshot) {
+      if (snapshot.exists) {
+        final data = snapshot.data()!;
+        final floors = data['totalFloors'] ?? 0;
+        final images = Map<String, String>.from(data['floorImages'] ?? {});
+        state = state.copyWith(totalFloors: floors, floorImages: images);
+      }
+    });
+  }
 
   void setTotalFloors(int count) {
-    state = state.copyWith(totalFloors: count);
+    FirebaseFirestore.instance.collection('settings').doc('campus_map').set({
+      'totalFloors': count,
+    }, SetOptions(merge: true));
   }
 
   void setImageForFloor(String floorTag, String path) {
     final newImages = Map<String, String>.from(state.floorImages);
     newImages[floorTag] = path;
-    state = state.copyWith(floorImages: newImages);
+    FirebaseFirestore.instance.collection('settings').doc('campus_map').set({
+      'floorImages': newImages,
+    }, SetOptions(merge: true));
   }
 }
 final campusMapProvider = NotifierProvider<CampusMapNotifier, CampusMapState>(() => CampusMapNotifier());

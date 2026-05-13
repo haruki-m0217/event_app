@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import '../../providers.dart';
@@ -64,11 +65,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
     );
   }
 
-  Future<void> _pickImageForFloor(String floorTag) async {
+  Map<String, bool> _uploadingMap = {};
+
+  Future<void> _pickImageForFloor(String floorTag, StateSetter setState) async {
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: ImageSource.gallery);
     if (picked != null) {
-      ref.read(campusMapProvider.notifier).setImageForFloor(floorTag, picked.path);
+      setState(() {
+        _uploadingMap[floorTag] = true;
+      });
+      try {
+        final storageRef = FirebaseStorage.instance.ref().child('campus_maps/map_${floorTag}_${DateTime.now().millisecondsSinceEpoch}.jpg');
+        if (kIsWeb) {
+          final bytes = await picked.readAsBytes();
+          await storageRef.putData(bytes);
+        } else {
+          await storageRef.putFile(File(picked.path));
+        }
+        final downloadUrl = await storageRef.getDownloadURL();
+        ref.read(campusMapProvider.notifier).setImageForFloor(floorTag, downloadUrl);
+      } catch (e) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('画像のアップロードに失敗しました: $e')));
+      } finally {
+        if (mounted) {
+          setState(() {
+            _uploadingMap[floorTag] = false;
+          });
+        }
+      }
     }
   }
 
@@ -117,10 +141,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with SingleTickerProvid
                       return ListTile(
                         title: Text(tag),
                         subtitle: Text(hasImage ? '画像設定済み' : '未設定', style: TextStyle(color: hasImage ? Colors.green : Colors.grey)),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.upload),
-                          onPressed: () => _pickImageForFloor(tag),
-                        ),
+                        trailing: _uploadingMap[tag] == true
+                            ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                            : IconButton(
+                                icon: const Icon(Icons.upload),
+                                onPressed: () => _pickImageForFloor(tag, setState),
+                              ),
                       );
                     },
                   ),

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -103,61 +104,13 @@ class AccountDashboardScreen extends ConsumerWidget {
                       )
                     ],
                   ),
-                  const Text('testuser@gmail.com', style: TextStyle(color: Colors.grey)),
+                  Text(FirebaseAuth.instance.currentUser?.email ?? 'ゲスト', style: const TextStyle(color: Colors.grey)),
                 ],
               ),
             ),
             const SizedBox(height: 40),
             
-            // Created Events
-            const Text('自分が管理しているイベント', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            if (createdEvents.isEmpty)
-              const Text('作成したイベントはありません。', style: TextStyle(color: Colors.grey))
-            else
-              ...createdEvents.map((title) => Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                shape: RoundedRectangleBorder(
-                  side: const BorderSide(color: Color(0xFF6B4EE6)),
-                  borderRadius: BorderRadius.circular(12)
-                ),
-                child: ListTile(
-                  title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    ref.read(eventNameProvider.notifier).setName(title.replaceAll(' (主催中)', ''));
-                    ref.read(userRoleProvider.notifier).setRole(UserRole.organizer);
-                    context.go('/main'); 
-                  },
-                ),
-              )),
-              
-            const SizedBox(height: 32),
-            
-            // Joined Events
-            const Text('参加しているイベント', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            if (joinedEvents.isEmpty)
-              const Text('参加しているイベントはありません。', style: TextStyle(color: Colors.grey))
-            else
-              ...joinedEvents.map((title) => Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                shape: RoundedRectangleBorder(
-                  side: BorderSide(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(12)
-                ),
-                child: ListTile(
-                  title: Text(title),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                  onTap: () {
-                    ref.read(eventNameProvider.notifier).setName(title);
-                    ref.read(userRoleProvider.notifier).setRole(UserRole.participant);
-                    context.go('/main'); 
-                  },
-                ),
-              )),
-              // 権限追加セクション
-            const SizedBox(height: 32),
+            // 権限追加セクション (Moved to top)
             const Text('運営・展示係の方へ', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Card(
@@ -223,7 +176,6 @@ class AccountDashboardScreen extends ConsumerWidget {
                   });
                 },
               ),
-            ),
           ],
         ),
       ),
